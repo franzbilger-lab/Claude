@@ -59,9 +59,15 @@
     </section>
 
     <section id="graphCard" class="card hidden">
-      <h2>Graph</h2>
-      <canvas id="graph" aria-label="Graph der Funktion mit markierten Nullstellen"></canvas>
-      <p class="hint">Nullstellen sind als Punkte markiert.</p>
+      <div class="graph-header">
+        <h2>Graph</h2>
+        <button id="resetViewBtn" class="chip" type="button">Ansicht zurücksetzen</button>
+      </div>
+      <canvas id="graph" aria-label="Interaktiver Graph der Funktion mit markierten Nullstellen"></canvas>
+      <p class="hint">
+        Nullstellen sind als Punkte markiert. Ziehen = verschieben ·
+        Mausrad / zwei Finger = zoomen · Doppelklick = zurücksetzen
+      </p>
     </section>
   </main>
 

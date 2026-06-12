@@ -358,17 +358,9 @@ function formatPolynomial(coeffs) {
  * Graph (Canvas)
  * ============================================================ */
 
-function drawGraph(canvas, coeffs, realRoots) {
-  const dpr = window.devicePixelRatio || 1;
-  const cssW = canvas.clientWidth;
-  const cssH = canvas.clientHeight;
-  canvas.width = cssW * dpr;
-  canvas.height = cssH * dpr;
-  const ctx = canvas.getContext("2d");
-  ctx.scale(dpr, dpr);
-  ctx.clearRect(0, 0, cssW, cssH);
-
-  // x-Bereich: alle reellen Nullstellen + Rand
+// Automatischer Anfangsausschnitt: alle reellen Nullstellen + Rand,
+// y-Bereich aus Stichproben (robust gegen Ausreißer: Quantile)
+function autoView(coeffs, realRoots) {
   let xMin = -5, xMax = 5;
   if (realRoots.length > 0) {
     const lo = Math.min(...realRoots);
@@ -378,7 +370,6 @@ function drawGraph(canvas, coeffs, realRoots) {
     xMax = hi + pad;
   }
 
-  // y-Bereich aus Stichproben (robust gegen Ausreißer: Quantile)
   const samples = [];
   const N = 400;
   for (let i = 0; i <= N; i++) {
@@ -392,7 +383,22 @@ function drawGraph(canvas, coeffs, realRoots) {
   if (yLo > 0) yLo = -Math.abs(yHi) * 0.1;
   if (yHi < 0) yHi = Math.abs(yLo) * 0.1;
   const yPad = Math.max((yHi - yLo) * 0.15, 1);
-  let yMin = yLo - yPad, yMax = yHi + yPad;
+  return { xMin, xMax, yMin: yLo - yPad, yMax: yHi + yPad };
+}
+
+function drawGraph(canvas, coeffs, realRoots, view) {
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = canvas.clientWidth;
+  const cssH = canvas.clientHeight;
+  if (cssW === 0 || cssH === 0) return;
+  canvas.width = cssW * dpr;
+  canvas.height = cssH * dpr;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, cssW, cssH);
+
+  const { xMin, xMax, yMin, yMax } = view;
+  const N = 400;
 
   const toX = (x) => ((x - xMin) / (xMax - xMin)) * cssW;
   const toY = (y) => cssH - ((y - yMin) / (yMax - yMin)) * cssH;
@@ -482,8 +488,20 @@ const parsedPoly = document.getElementById("parsedPoly");
 const rootsList = document.getElementById("rootsList");
 const stepsList = document.getElementById("stepsList");
 const canvas = document.getElementById("graph");
+const resetViewBtn = document.getElementById("resetViewBtn");
 
 let lastResult = null;
+let view = null;
+
+function redraw() {
+  if (lastResult && view) drawGraph(canvas, lastResult.coeffs, lastResult.realRoots, view);
+}
+
+function resetView() {
+  if (!lastResult) return;
+  view = autoView(lastResult.coeffs, lastResult.realRoots);
+  redraw();
+}
 
 function run() {
   errorBox.classList.add("hidden");
@@ -527,10 +545,12 @@ function run() {
 
     if (coeffs.length > 1) {
       lastResult = { coeffs, realRoots: realGroups.map((g) => g.re) };
+      view = autoView(coeffs, lastResult.realRoots);
       graphCard.classList.remove("hidden");
-      drawGraph(canvas, coeffs, lastResult.realRoots);
+      redraw();
     } else {
       lastResult = null;
+      view = null;
       graphCard.classList.add("hidden");
     }
   } catch (e) {
@@ -539,6 +559,7 @@ function run() {
     resultCard.classList.add("hidden");
     graphCard.classList.add("hidden");
     lastResult = null;
+    view = null;
   }
 }
 
@@ -557,9 +578,87 @@ document.querySelectorAll(".chip").forEach((chip) => {
 let resizeTimer;
 window.addEventListener("resize", () => {
   clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(() => {
-    if (lastResult) drawGraph(canvas, lastResult.coeffs, lastResult.realRoots);
-  }, 150);
+  resizeTimer = setTimeout(redraw, 150);
 });
+
+/* ---------- Graph verschieben (Pan) und zoomen ---------- */
+
+const pointers = new Map();
+let lastPinchDist = null;
+
+function panView(dxPx, dyPx) {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (!view || w === 0 || h === 0) return;
+  const dx = (-dxPx / w) * (view.xMax - view.xMin);
+  const dy = (dyPx / h) * (view.yMax - view.yMin);
+  view.xMin += dx;
+  view.xMax += dx;
+  view.yMin += dy;
+  view.yMax += dy;
+  redraw();
+}
+
+// factor < 1: hineinzoomen, factor > 1: herauszoomen; (pxX, pxY) bleibt fix
+function zoomView(factor, pxX, pxY) {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (!view || w === 0 || h === 0) return;
+  const newXRange = (view.xMax - view.xMin) * factor;
+  const newYRange = (view.yMax - view.yMin) * factor;
+  if (Math.min(newXRange, newYRange) < 1e-9 || Math.max(newXRange, newYRange) > 1e12) return;
+  const ax = view.xMin + (pxX / w) * (view.xMax - view.xMin);
+  const ay = view.yMax - (pxY / h) * (view.yMax - view.yMin);
+  view.xMin = ax - (ax - view.xMin) * factor;
+  view.xMax = ax + (view.xMax - ax) * factor;
+  view.yMin = ay - (ay - view.yMin) * factor;
+  view.yMax = ay + (view.yMax - ay) * factor;
+  redraw();
+}
+
+canvas.addEventListener("pointerdown", (e) => {
+  canvas.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pointers.size === 2) {
+    const [a, b] = [...pointers.values()];
+    lastPinchDist = Math.hypot(a.x - b.x, a.y - b.y);
+  }
+});
+
+canvas.addEventListener("pointermove", (e) => {
+  if (!pointers.has(e.pointerId)) return;
+  const prev = pointers.get(e.pointerId);
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+  if (pointers.size === 1) {
+    panView(e.clientX - prev.x, e.clientY - prev.y);
+  } else if (pointers.size === 2) {
+    const [a, b] = [...pointers.values()];
+    const dist = Math.hypot(a.x - b.x, a.y - b.y);
+    if (lastPinchDist > 0 && dist > 0) {
+      const rect = canvas.getBoundingClientRect();
+      zoomView(lastPinchDist / dist, (a.x + b.x) / 2 - rect.left, (a.y + b.y) / 2 - rect.top);
+    }
+    lastPinchDist = dist;
+  }
+});
+
+function endPointer(e) {
+  pointers.delete(e.pointerId);
+  lastPinchDist = null;
+}
+canvas.addEventListener("pointerup", endPointer);
+canvas.addEventListener("pointercancel", endPointer);
+
+canvas.addEventListener(
+  "wheel",
+  (e) => {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    zoomView(Math.pow(1.0015, e.deltaY), e.clientX - rect.left, e.clientY - rect.top);
+  },
+  { passive: false }
+);
+
+canvas.addEventListener("dblclick", resetView);
+resetViewBtn.addEventListener("click", resetView);
 
 run();
