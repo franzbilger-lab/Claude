@@ -489,12 +489,25 @@ const rootsList = document.getElementById("rootsList");
 const stepsList = document.getElementById("stepsList");
 const canvas = document.getElementById("graph");
 const resetViewBtn = document.getElementById("resetViewBtn");
+const graphModal = document.getElementById("graphModal");
+const canvasFull = document.getElementById("graphFull");
+const modalTitle = document.getElementById("modalTitle");
+const closeModalBtn = document.getElementById("closeModalBtn");
+const zoomInBtn = document.getElementById("zoomInBtn");
+const zoomOutBtn = document.getElementById("zoomOutBtn");
+const resetFullBtn = document.getElementById("resetFullBtn");
 
 let lastResult = null;
 let view = null;
 
+function modalOpen() {
+  return !graphModal.classList.contains("hidden");
+}
+
 function redraw() {
-  if (lastResult && view) drawGraph(canvas, lastResult.coeffs, lastResult.realRoots, view);
+  if (!lastResult || !view) return;
+  drawGraph(canvas, lastResult.coeffs, lastResult.realRoots, view);
+  if (modalOpen()) drawGraph(canvasFull, lastResult.coeffs, lastResult.realRoots, view);
 }
 
 function resetView() {
@@ -568,7 +581,7 @@ input.addEventListener("keydown", (e) => {
   if (e.key === "Enter") run();
 });
 
-document.querySelectorAll(".chip").forEach((chip) => {
+document.querySelectorAll(".chip[data-example]").forEach((chip) => {
   chip.addEventListener("click", () => {
     input.value = chip.dataset.example;
     run();
@@ -583,11 +596,8 @@ window.addEventListener("resize", () => {
 
 /* ---------- Graph verschieben (Pan) und zoomen ---------- */
 
-const pointers = new Map();
-let lastPinchDist = null;
-
-function panView(dxPx, dyPx) {
-  const w = canvas.clientWidth, h = canvas.clientHeight;
+function panView(cv, dxPx, dyPx) {
+  const w = cv.clientWidth, h = cv.clientHeight;
   if (!view || w === 0 || h === 0) return;
   const dx = (-dxPx / w) * (view.xMax - view.xMin);
   const dy = (dyPx / h) * (view.yMax - view.yMin);
@@ -599,8 +609,8 @@ function panView(dxPx, dyPx) {
 }
 
 // factor < 1: hineinzoomen, factor > 1: herauszoomen; (pxX, pxY) bleibt fix
-function zoomView(factor, pxX, pxY) {
-  const w = canvas.clientWidth, h = canvas.clientHeight;
+function zoomView(cv, factor, pxX, pxY) {
+  const w = cv.clientWidth, h = cv.clientHeight;
   if (!view || w === 0 || h === 0) return;
   const newXRange = (view.xMax - view.xMin) * factor;
   const newYRange = (view.yMax - view.yMin) * factor;
@@ -614,51 +624,100 @@ function zoomView(factor, pxX, pxY) {
   redraw();
 }
 
-canvas.addEventListener("pointerdown", (e) => {
-  canvas.setPointerCapture(e.pointerId);
-  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  if (pointers.size === 2) {
-    const [a, b] = [...pointers.values()];
-    lastPinchDist = Math.hypot(a.x - b.x, a.y - b.y);
-  }
-});
+// Pan (1 Finger/Maus), Pinch-Zoom (2 Finger), Mausrad-Zoom.
+// onTap wird nur bei kurzem Antippen ohne Bewegung ausgelöst.
+function attachGraphInteraction(cv, onTap) {
+  const pointers = new Map();
+  let lastPinchDist = null;
+  let tap = null; // { x, y, t, moved }
 
-canvas.addEventListener("pointermove", (e) => {
-  if (!pointers.has(e.pointerId)) return;
-  const prev = pointers.get(e.pointerId);
-  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-
-  if (pointers.size === 1) {
-    panView(e.clientX - prev.x, e.clientY - prev.y);
-  } else if (pointers.size === 2) {
-    const [a, b] = [...pointers.values()];
-    const dist = Math.hypot(a.x - b.x, a.y - b.y);
-    if (lastPinchDist > 0 && dist > 0) {
-      const rect = canvas.getBoundingClientRect();
-      zoomView(lastPinchDist / dist, (a.x + b.x) / 2 - rect.left, (a.y + b.y) / 2 - rect.top);
+  cv.addEventListener("pointerdown", (e) => {
+    cv.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 1) {
+      tap = { x: e.clientX, y: e.clientY, t: Date.now(), moved: false };
+    } else {
+      tap = null;
+      if (pointers.size === 2) {
+        const [a, b] = [...pointers.values()];
+        lastPinchDist = Math.hypot(a.x - b.x, a.y - b.y);
+      }
     }
-    lastPinchDist = dist;
+  });
+
+  cv.addEventListener("pointermove", (e) => {
+    if (!pointers.has(e.pointerId)) return;
+    const prev = pointers.get(e.pointerId);
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (tap && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) > 6) tap.moved = true;
+
+    if (pointers.size === 1) {
+      panView(cv, e.clientX - prev.x, e.clientY - prev.y);
+    } else if (pointers.size === 2) {
+      const [a, b] = [...pointers.values()];
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      if (lastPinchDist > 0 && dist > 0) {
+        const rect = cv.getBoundingClientRect();
+        zoomView(cv, lastPinchDist / dist, (a.x + b.x) / 2 - rect.left, (a.y + b.y) / 2 - rect.top);
+      }
+      lastPinchDist = dist;
+    }
+  });
+
+  function endPointer(e) {
+    pointers.delete(e.pointerId);
+    lastPinchDist = null;
+    if (tap && !tap.moved && Date.now() - tap.t < 400 && pointers.size === 0 && onTap) {
+      onTap();
+    }
+    tap = null;
   }
-});
+  cv.addEventListener("pointerup", endPointer);
+  cv.addEventListener("pointercancel", endPointer);
 
-function endPointer(e) {
-  pointers.delete(e.pointerId);
-  lastPinchDist = null;
+  cv.addEventListener(
+    "wheel",
+    (e) => {
+      e.preventDefault();
+      const rect = cv.getBoundingClientRect();
+      zoomView(cv, Math.pow(1.0015, e.deltaY), e.clientX - rect.left, e.clientY - rect.top);
+    },
+    { passive: false }
+  );
 }
-canvas.addEventListener("pointerup", endPointer);
-canvas.addEventListener("pointercancel", endPointer);
 
-canvas.addEventListener(
-  "wheel",
-  (e) => {
-    e.preventDefault();
-    const rect = canvas.getBoundingClientRect();
-    zoomView(Math.pow(1.0015, e.deltaY), e.clientX - rect.left, e.clientY - rect.top);
-  },
-  { passive: false }
-);
+/* ---------- Vollbild-Ansicht ---------- */
 
-canvas.addEventListener("dblclick", resetView);
+function openModal() {
+  if (!lastResult) return;
+  modalTitle.textContent = parsedPoly.textContent;
+  graphModal.classList.remove("hidden");
+  document.body.classList.add("no-scroll");
+  redraw();
+}
+
+function closeModal() {
+  graphModal.classList.add("hidden");
+  document.body.classList.remove("no-scroll");
+}
+
+function zoomCenter(factor) {
+  zoomView(canvasFull, factor, canvasFull.clientWidth / 2, canvasFull.clientHeight / 2);
+}
+
+attachGraphInteraction(canvas, openModal);
+attachGraphInteraction(canvasFull, null);
+
 resetViewBtn.addEventListener("click", resetView);
+closeModalBtn.addEventListener("click", closeModal);
+zoomInBtn.addEventListener("click", () => zoomCenter(0.7));
+zoomOutBtn.addEventListener("click", () => zoomCenter(1 / 0.7));
+resetFullBtn.addEventListener("click", resetView);
+canvasFull.addEventListener("dblclick", resetView);
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && modalOpen()) closeModal();
+});
 
 run();

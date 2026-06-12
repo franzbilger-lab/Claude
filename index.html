@@ -6,7 +6,7 @@
   <meta name="description" content="Nullstellenrechner für ganzrationale Funktionen (Polynome) – exakt für Grad 1–2, numerisch für höhere Grade, mit Graph und Lösungsweg.">
   <meta name="theme-color" content="#0f172a">
   <title>Nullstellenrechner – ganzrationale Funktionen</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
   <header class="header">
@@ -65,16 +65,29 @@
       </div>
       <canvas id="graph" aria-label="Interaktiver Graph der Funktion mit markierten Nullstellen"></canvas>
       <p class="hint">
-        Nullstellen sind als Punkte markiert. Ziehen = verschieben ·
-        Mausrad / zwei Finger = zoomen · Doppelklick = zurücksetzen
+        Nullstellen sind als Punkte markiert. <strong>Antippen öffnet die Vollbild-Ansicht.</strong><br>
+        Ziehen = verschieben · Mausrad / zwei Finger = zoomen
       </p>
     </section>
   </main>
+
+  <div id="graphModal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Graph in Vollbild-Ansicht">
+    <div class="modal-bar">
+      <span id="modalTitle" class="modal-title">f(x)</span>
+      <button id="closeModalBtn" class="chip" type="button">✕ Schließen</button>
+    </div>
+    <canvas id="graphFull" aria-label="Interaktiver Graph in Vollbild-Ansicht"></canvas>
+    <div class="modal-controls">
+      <button id="zoomInBtn" class="ctrl-btn" type="button" aria-label="Hineinzoomen">+</button>
+      <button id="zoomOutBtn" class="ctrl-btn" type="button" aria-label="Herauszoomen">−</button>
+      <button id="resetFullBtn" class="ctrl-btn ctrl-btn-text" type="button">Zurücksetzen</button>
+    </div>
+  </div>
 
   <footer class="footer">
     <p>Grad 1–2: exakte Formeln · Grad ≥ 3: rationale Nullstellen + numerisches Verfahren (Durand-Kerner)</p>
   </footer>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=3"></script>
 </body>
 </html>
