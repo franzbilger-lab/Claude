@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="Nullstellenrechner für ganzrationale Funktionen (Polynome) – exakt für Grad 1–2, numerisch für höhere Grade, mit Graph und Lösungsweg.">
+  <meta name="theme-color" content="#0f172a">
+  <title>Nullstellenrechner – ganzrationale Funktionen</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="header">
+    <h1>Nullstellenrechner</h1>
+    <p class="subtitle">für ganzrationale Funktionen (Polynome)</p>
+  </header>
+
+  <main class="container">
+    <section class="card">
+      <label for="polyInput" class="input-label">f(x) =</label>
+      <div class="input-row">
+        <input
+          id="polyInput"
+          type="text"
+          inputmode="text"
+          autocomplete="off"
+          autocapitalize="off"
+          spellcheck="false"
+          placeholder="z. B. x^3 - 2x^2 - 5x + 6"
+          value="x^3 - 2x^2 - 5x + 6"
+        >
+        <button id="solveBtn" class="btn-primary" type="button">Lösen</button>
+      </div>
+      <p class="hint">
+        Erlaubt: Potenzen mit <code>^</code> oder <code>²³</code>, Dezimalzahlen mit Komma oder Punkt,
+        z.&nbsp;B. <code>2x^4 - 0,5x + 3</code>
+      </p>
+
+      <div class="examples" aria-label="Beispiele">
+        <span class="examples-label">Beispiele:</span>
+        <button class="chip" type="button" data-example="2x + 4">2x + 4</button>
+        <button class="chip" type="button" data-example="x^2 - x - 6">x² − x − 6</button>
+        <button class="chip" type="button" data-example="x^2 + 4">x² + 4</button>
+        <button class="chip" type="button" data-example="x^3 - 2x^2 - 5x + 6">x³ − 2x² − 5x + 6</button>
+        <button class="chip" type="button" data-example="x^4 - 5x^2 + 4">x⁴ − 5x² + 4</button>
+        <button class="chip" type="button" data-example="x^5 - 3x^3 + x - 1">x⁵ − 3x³ + x − 1</button>
+      </div>
+    </section>
+
+    <section id="errorBox" class="card error hidden" role="alert"></section>
+
+    <section id="resultCard" class="card hidden">
+      <h2>Ergebnis</h2>
+      <p id="parsedPoly" class="parsed-poly"></p>
+      <div id="rootsList" class="roots"></div>
+      <details id="stepsBox" class="steps">
+        <summary>Lösungsweg anzeigen</summary>
+        <ol id="stepsList"></ol>
+      </details>
+    </section>
+
+    <section id="graphCard" class="card hidden">
+      <h2>Graph</h2>
+      <canvas id="graph" aria-label="Graph der Funktion mit markierten Nullstellen"></canvas>
+      <p class="hint">Nullstellen sind als Punkte markiert.</p>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>Grad 1–2: exakte Formeln · Grad ≥ 3: rationale Nullstellen + numerisches Verfahren (Durand-Kerner)</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
